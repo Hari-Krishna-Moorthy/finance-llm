@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, Boolean, Date, ForeignKey, Numeric, DateTime, func
+from sqlalchemy import Column, Integer, String, Float, Boolean, Date, ForeignKey, Numeric, DateTime, func, JSON
 from sqlalchemy.orm import relationship
 from .database import Base
 
@@ -31,6 +31,7 @@ class Transaction(Base):
     amount = Column(Numeric(precision=15, scale=2))
     transaction_type = Column(String)  # Credit or Debit
     reference_id = Column(String, nullable=True, index=True)
+    extra_details = Column(JSON, nullable=True)
     
     # Multi-Currency Support
     original_currency = Column(String, default="INR")
@@ -68,3 +69,21 @@ class StatementUpload(Base):
 
     account_id = Column(Integer, ForeignKey("accounts.id"), nullable=False)
     account = relationship("Account")
+
+
+class DashboardState(Base):
+    __tablename__ = "dashboard_state"
+
+    id = Column(Integer, primary_key=True, index=True)
+    key = Column(String, unique=True, index=True, nullable=False)
+    value = Column(String, nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+class AppSetting(Base):
+    __tablename__ = "app_settings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    key = Column(String, unique=True, index=True, nullable=False)
+    value = Column(String, nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

@@ -1,15 +1,23 @@
 from fastapi import APIRouter, Request, Depends, UploadFile, File, Form
+from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from typing import Optional
+from datetime import date, datetime, timedelta
+from decimal import Decimal
 from ..database import get_db
 from .. import models
 from ..services.upload_tracking import create_statement_upload
 from ..services.categories import (
+    assign_category_to_matching_upi_transactions,
     assign_transaction_category,
     create_custom_category,
     seed_default_categories,
+    get_upi_id_summary,
+    assign_category_by_upi_id,
 )
+from ..services.dashboard_state import get_dashboard_state, upsert_dashboard_state, sync_dashboard_metrics
+from ..services.app_settings import get_setting, upsert_setting
 import shutil
 import os
 from uuid import uuid4
@@ -20,14 +28,16 @@ templates = Jinja2Templates(directory="app/templates")
 @router.get("/")
 async def home(request: Request, db: Session = Depends(get_db)):
     transactions = db.query(models.Transaction).order_by(models.Transaction.date.desc()).limit(10).all()
-    # Basic balance calculation (simplified)
-    total_balance = 0 # To be calculated
+    sync_dashboard_metrics(db)
+    total_balance = get_dashboard_state(db, "total_balance", "0")
+    theme = get_dashboard_state(db, "theme", "dark")
     return templates.TemplateResponse(
         request=request, 
         name="index.html", 
         context={
             "transactions": transactions,
-            "total_balance": total_balance
+            "total_balance": total_balance,
+            "theme": theme,
         }
     )
 
@@ -132,22 +142,198 @@ async def manual_unlink(
 @router.get("/upload")
 async def upload_page(request: Request, db: Session = Depends(get_db)):
     accounts = db.query(models.Account).all()
+    uploads = (
+        db.query(models.StatementUpload)
+        .order_by(models.StatementUpload.created_at.desc())
+        .all()
+    )
     return templates.TemplateResponse(
         request=request, 
         name="upload.html", 
-        context={"accounts": accounts}
+        context={"accounts": accounts, "uploads": uploads}
     )
 
 @router.get("/transactions")
-async def transactions_page(request: Request, db: Session = Depends(get_db)):
+async def transactions_page(
+    request: Request,
+    db: Session = Depends(get_db),
+    range: Optional[str] = None,
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+    account_type: Optional[str] = None,
+):
     seed_default_categories(db)
-    transactions = db.query(models.Transaction).order_by(models.Transaction.date.desc()).all()
+    query = db.query(models.Transaction).join(models.Account, models.Transaction.account_id == models.Account.id)
+
+    today = date.today()
+    start_date = None
+    end_date = None
+
+    range_map = {
+        "1d": 1,
+        "7d": 7,
+        "30d": 30,
+        "60d": 60,
+        "90d": 90,
+        "6m": 183,
+        "1y": 365,
+    }
+
+    if range in range_map:
+        start_date = today - timedelta(days=range_map[range] - 1)
+        end_date = today
+    else:
+        start_date = today - timedelta(days=90)
+        end_date = today
+
+    if from_date:
+        try:
+            start_date = datetime.strptime(from_date, "%Y-%m-%d").date()
+        except ValueError:
+            pass
+
+    if to_date:
+        try:
+            end_date = datetime.strptime(to_date, "%Y-%m-%d").date()
+        except ValueError:
+            pass
+
+    if start_date:
+        query = query.filter(models.Transaction.date >= start_date)
+    if end_date:
+        query = query.filter(models.Transaction.date <= end_date)
+    if account_type:
+        query = query.filter(models.Account.account_type == account_type)
+
+    transactions = query.order_by(models.Transaction.date.desc()).all()
     categories = db.query(models.Category).order_by(models.Category.is_custom.asc(), models.Category.name.asc()).all()
+    account_types = [row[0] for row in db.query(models.Account.account_type).distinct().order_by(models.Account.account_type).all()]
     return templates.TemplateResponse(
         request=request, 
         name="transactions.html", 
-        context={"transactions": transactions, "categories": categories}
+        context={
+            "transactions": transactions,
+            "categories": categories,
+            "account_types": account_types,
+            "selected_range": range or "90d",
+            "from_date": from_date or "",
+            "to_date": to_date or "",
+            "selected_account_type": account_type or "",
+        }
     )
+
+
+@router.get("/settings")
+async def settings_page(
+    request: Request, 
+    db: Session = Depends(get_db),
+    only_untagged: bool = False
+):
+    seed_default_categories(db)
+    accounts = db.query(models.Account).order_by(models.Account.name.asc()).all()
+    categories = db.query(models.Category).order_by(models.Category.is_custom.asc(), models.Category.name.asc()).all()
+    upi_summaries = get_upi_id_summary(db, only_untagged=only_untagged)
+    return templates.TemplateResponse(
+        request=request,
+        name="settings.html",
+        context={
+            "accounts": accounts,
+            "categories": categories,
+            "upi_summaries": upi_summaries,
+            "only_untagged": only_untagged,
+            "settings": {
+                "balance_adjustment": get_setting(db, "balance_adjustment", "0"),
+                "theme": get_dashboard_state(db, "theme", "dark"),
+                "exclude_self_transfer_from_balance": get_setting(db, "exclude_self_transfer_from_balance", "true"),
+            },
+        },
+    )
+
+
+@router.post("/settings/upi-categorize")
+async def upi_categorize(
+    request: Request,
+    upi_id: str = Form(...),
+    category_id: int = Form(...),
+    only_untagged_current: bool = Form(False),
+    db: Session = Depends(get_db),
+):
+    updated_count = assign_category_by_upi_id(db, upi_id, category_id)
+    sync_dashboard_metrics(db)
+    
+    # Render settings page with a message and same filter
+    seed_default_categories(db)
+    accounts = db.query(models.Account).order_by(models.Account.name.asc()).all()
+    categories = db.query(models.Category).order_by(models.Category.is_custom.asc(), models.Category.name.asc()).all()
+    upi_summaries = get_upi_id_summary(db, only_untagged=only_untagged_current)
+    return templates.TemplateResponse(
+        request=request,
+        name="settings.html",
+        context={
+            "accounts": accounts,
+            "categories": categories,
+            "upi_summaries": upi_summaries,
+            "only_untagged": only_untagged_current,
+            "message": f"Updated {updated_count} transaction(s) for UPI ID: {upi_id}",
+            "settings": {
+                "balance_adjustment": get_setting(db, "balance_adjustment", "0"),
+                "theme": get_dashboard_state(db, "theme", "dark"),
+                "exclude_self_transfer_from_balance": get_setting(db, "exclude_self_transfer_from_balance", "true"),
+            },
+        },
+    )
+
+
+@router.post("/settings/balance")
+async def update_balance_adjustment(
+    request: Request,
+    balance_adjustment: str = Form("0"),
+    db: Session = Depends(get_db),
+):
+    upsert_setting(db, "balance_adjustment", balance_adjustment)
+    sync_dashboard_metrics(db)
+    return await settings_page(request, db)
+
+
+@router.post("/settings/self-transfer")
+async def update_self_transfer_setting(
+    request: Request,
+    exclude_self_transfer_from_balance: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
+):
+    upsert_setting(db, "exclude_self_transfer_from_balance", "true" if exclude_self_transfer_from_balance else "false")
+    sync_dashboard_metrics(db)
+    return await settings_page(request, db)
+
+
+@router.post("/settings/manual-transaction")
+async def create_manual_transaction(
+    request: Request,
+    account_id: int = Form(...),
+    date_value: str = Form(...),
+    description: str = Form(...),
+    amount: str = Form(...),
+    transaction_type: str = Form(...),
+    category_id: Optional[int] = Form(None),
+    currency: str = Form("INR"),
+    db: Session = Depends(get_db),
+):
+    amount_value = Decimal(amount.replace(",", "").strip())
+    transaction = models.Transaction(
+        date=datetime.strptime(date_value, "%Y-%m-%d").date(),
+        description=description.strip(),
+        amount=amount_value,
+        transaction_type=transaction_type,
+        original_currency=currency,
+        exchange_rate=Decimal("1"),
+        base_amount_inr=amount_value,
+        account_id=account_id,
+        category_id=category_id,
+    )
+    db.add(transaction)
+    db.commit()
+    sync_dashboard_metrics(db)
+    return await settings_page(request, db)
 
 
 @router.post("/transactions/{transaction_id}/category")
@@ -155,10 +341,24 @@ async def update_transaction_category(
     request: Request,
     transaction_id: int,
     category_id: int = Form(...),
+    apply_same_upi: Optional[str] = Form(None),
     db: Session = Depends(get_db),
 ):
-    assign_transaction_category(db, transaction_id, category_id)
-    return await transactions_page(request, db)
+    if apply_same_upi:
+        updated_count = assign_category_to_matching_upi_transactions(db, transaction_id, category_id)
+        message = f"Category applied to {updated_count} transaction(s) with the same UPI ID."
+    else:
+        assign_transaction_category(db, transaction_id, category_id)
+        message = "Category updated successfully."
+
+    sync_dashboard_metrics(db)
+    transactions = db.query(models.Transaction).order_by(models.Transaction.date.desc()).all()
+    categories = db.query(models.Category).order_by(models.Category.is_custom.asc(), models.Category.name.asc()).all()
+    return templates.TemplateResponse(
+        request=request,
+        name="transactions.html",
+        context={"transactions": transactions, "categories": categories, "message": message},
+    )
 
 
 @router.post("/categories")
@@ -170,6 +370,16 @@ async def add_category(
 ):
     create_custom_category(db, name.strip(), description.strip() if description else None)
     return await transactions_page(request, db)
+
+
+@router.post("/theme")
+async def update_theme(
+    request: Request,
+    theme: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    upsert_dashboard_state(db, "theme", theme)
+    return JSONResponse({"status": "ok", "theme": theme})
 
 from ..workers.tasks import process_statement_task, process_markdown_task
 
@@ -217,4 +427,39 @@ async def handle_upload(
             "accounts": db.query(models.Account).all(),
             "message": f"{message} Processing in background..."
         }
+    )
+
+
+@router.post("/upload/{upload_id}/reprocess")
+async def reprocess_upload(
+    request: Request,
+    upload_id: int,
+    db: Session = Depends(get_db),
+):
+    upload = db.query(models.StatementUpload).filter(models.StatementUpload.id == upload_id).first()
+    if not upload:
+        accounts = db.query(models.Account).all()
+        uploads = db.query(models.StatementUpload).order_by(models.StatementUpload.created_at.desc()).all()
+        return templates.TemplateResponse(
+            request=request,
+            name="upload.html",
+            context={"accounts": accounts, "uploads": uploads, "message": "Upload record not found."},
+        )
+
+    upload.processed = False
+    upload.processing_error = None
+    db.commit()
+
+    process_statement_task.delay(upload.file_path, upload.account_id, upload.id, password=None)
+
+    accounts = db.query(models.Account).all()
+    uploads = db.query(models.StatementUpload).order_by(models.StatementUpload.created_at.desc()).all()
+    return templates.TemplateResponse(
+        request=request,
+        name="upload.html",
+        context={
+            "accounts": accounts,
+            "uploads": uploads,
+            "message": f"Reprocessing started for {upload.file_path.split('/')[-1]}",
+        },
     )
