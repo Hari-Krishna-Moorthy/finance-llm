@@ -23,6 +23,33 @@ async def home(request: Request, db: Session = Depends(get_db)):
         }
     )
 
+@router.get("/accounts")
+async def accounts_page(request: Request, db: Session = Depends(get_db)):
+    accounts = db.query(models.Account).all()
+    return templates.TemplateResponse(
+        request=request, 
+        name="accounts.html", 
+        context={"accounts": accounts}
+    )
+
+@router.post("/accounts")
+async def create_account(
+    request: Request,
+    name: str = Form(...),
+    account_type: str = Form(...),
+    currency: str = Form("INR"),
+    db: Session = Depends(get_db)
+):
+    account = models.Account(name=name, account_type=account_type, currency=currency)
+    db.add(account)
+    db.commit()
+    accounts = db.query(models.Account).all()
+    return templates.TemplateResponse(
+        request=request, 
+        name="accounts.html", 
+        context={"accounts": accounts, "message": f"Account '{name}' created successfully!"}
+    )
+
 @router.get("/upload")
 async def upload_page(request: Request, db: Session = Depends(get_db)):
     accounts = db.query(models.Account).all()
