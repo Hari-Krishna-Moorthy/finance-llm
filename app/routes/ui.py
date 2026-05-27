@@ -1,10 +1,18 @@
 from fastapi import APIRouter, Request, Depends, UploadFile, File, Form
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
+from typing import Optional
 from ..database import get_db
 from .. import models
+from ..services.upload_tracking import create_statement_upload
+from ..services.categories import (
+    assign_transaction_category,
+    create_custom_category,
+    seed_default_categories,
+)
 import shutil
 import os
+from uuid import uuid4
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -132,15 +140,38 @@ async def upload_page(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/transactions")
 async def transactions_page(request: Request, db: Session = Depends(get_db)):
+    seed_default_categories(db)
     transactions = db.query(models.Transaction).order_by(models.Transaction.date.desc()).all()
+    categories = db.query(models.Category).order_by(models.Category.is_custom.asc(), models.Category.name.asc()).all()
     return templates.TemplateResponse(
         request=request, 
         name="transactions.html", 
-        context={"transactions": transactions}
+        context={"transactions": transactions, "categories": categories}
     )
 
+
+@router.post("/transactions/{transaction_id}/category")
+async def update_transaction_category(
+    request: Request,
+    transaction_id: int,
+    category_id: int = Form(...),
+    db: Session = Depends(get_db),
+):
+    assign_transaction_category(db, transaction_id, category_id)
+    return await transactions_page(request, db)
+
+
+@router.post("/categories")
+async def add_category(
+    request: Request,
+    name: str = Form(...),
+    description: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
+):
+    create_custom_category(db, name.strip(), description.strip() if description else None)
+    return await transactions_page(request, db)
+
 from ..workers.tasks import process_statement_task, process_markdown_task
-from typing import Optional
 
 @router.post("/upload")
 async def handle_upload(
@@ -156,11 +187,19 @@ async def handle_upload(
     # Process File
     if file and file.filename:
         os.makedirs("uploads", exist_ok=True)
-        file_path = os.path.abspath(f"uploads/{file.filename}")
+        safe_filename = os.path.basename(file.filename)
+        file_path = os.path.abspath(f"uploads/{uuid4().hex}_{safe_filename}")
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
-        
-        process_statement_task.delay(file_path, account_id, password=password)
+
+        upload_record = create_statement_upload(
+            db=db,
+            file_path=file_path,
+            account_id=account_id,
+            has_password=bool(password and password.strip()),
+        )
+
+        process_statement_task.delay(file_path, account_id, upload_record.id, password=password)
         message += f"Successfully uploaded {file.filename}. "
 
     # Process Markdown Text

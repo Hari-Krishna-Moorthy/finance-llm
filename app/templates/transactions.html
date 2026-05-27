@@ -6,6 +6,24 @@
 <h2>All Transactions</h2>
 <hr>
 
+<div class="card mb-4">
+    <div class="card-body">
+        <h5 class="card-title">Add Custom Category</h5>
+        <form action="/categories" method="post" class="row g-3">
+            <div class="col-md-4">
+                <input type="text" name="name" class="form-control" placeholder="Category name" required>
+            </div>
+            <div class="col-md-6">
+                <input type="text" name="description" class="form-control" placeholder="Optional description">
+            </div>
+            <div class="col-md-2 d-grid">
+                <button type="submit" class="btn btn-primary">Add Category</button>
+            </div>
+        </form>
+        <small class="text-muted">Default categories are preloaded. Custom categories are marked separately.</small>
+    </div>
+</div>
+
 <div class="card">
     <div class="card-body">
         <table class="table table-hover">
@@ -33,7 +51,21 @@
                         </span>
                     </td>
                     <td>{{ t.account.name if t.account else 'N/A' }}</td>
-                    <td>{{ t.category.name if t.category else 'Uncategorized' }}</td>
+                    <td>
+                        <form action="/transactions/{{ t.id }}/category" method="post" class="d-flex gap-2 align-items-center">
+                            <select name="category_id" class="form-select form-select-sm" required>
+                                {% for category in categories %}
+                                <option value="{{ category.id }}" {% if t.category_id == category.id %}selected{% endif %}>
+                                    {{ category.name }}{% if category.is_custom %} (Custom){% endif %}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <button type="submit" class="btn btn-sm btn-outline-primary">Save</button>
+                        </form>
+                        <div class="mt-1 text-muted small">
+                            Current: {{ t.category.name if t.category else 'Uncategorized' }}
+                        </div>
+                    </td>
                     <td>{{ t.original_currency }}</td>
                     <td>
                         {% if t.is_tax_deductible %}

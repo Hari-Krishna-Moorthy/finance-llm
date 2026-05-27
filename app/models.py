@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, Boolean, Date, ForeignKey, Numeric
+from sqlalchemy import Column, Integer, String, Float, Boolean, Date, ForeignKey, Numeric, DateTime, func
 from sqlalchemy.orm import relationship
 from .database import Base
 
@@ -18,6 +18,7 @@ class Category(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, index=True)
     description = Column(String, nullable=True)
+    is_custom = Column(Boolean, default=False, nullable=False)
     
     transactions = relationship("Transaction", back_populates="category")
 
@@ -52,3 +53,18 @@ class Transaction(Base):
     
     # Self-referential relationship for reconciliation
     internal_transfer = relationship("Transaction", remote_side=[id], post_update=True)
+
+
+class StatementUpload(Base):
+    __tablename__ = "statement_uploads"
+
+    id = Column(Integer, primary_key=True, index=True)
+    file_path = Column(String, nullable=False)
+    has_password = Column(Boolean, default=False, nullable=False)
+    processed = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    processed_at = Column(DateTime(timezone=True), nullable=True)
+    processing_error = Column(String, nullable=True)
+
+    account_id = Column(Integer, ForeignKey("accounts.id"), nullable=False)
+    account = relationship("Account")

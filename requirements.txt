@@ -12,3 +12,4 @@ celery
 redis
 scikit-learn
 python-dotenv
+pytest

@@ -21,6 +21,8 @@ This file contains the foundational mandates, architectural patterns, and workfl
 - Manual ingestion via Markdown tables is supported through a dedicated text area.
 - Standardize all transaction data into the `Transaction` model before database insertion.
 - Handle varied amount formats (e.g., "1,234.56 Dr", "500.00 Cr") and date formats.
+- Track every statement upload in `statement_uploads` with file path, password flag, timestamps, and processing status before background ingestion starts.
+- Support category assignment on the All Transactions page and keep a seeded category catalog plus custom categories.
 
 ### Reconciliation Engine
 - Internal transfers are identified by matching amounts and dates (±3 days) across different accounts.
@@ -29,6 +31,11 @@ This file contains the foundational mandates, architectural patterns, and workfl
 ### ML & Categorization
 - Use `MultinomialNB` for transaction categorization.
 - Categorization should be triggered as a background task after ingestion.
+
+### Upload Tracking
+- Create a `StatementUpload` record immediately when a file is received.
+- Mark uploads as processed only after the ingestion task succeeds.
+- Persist processing failures on the upload record for auditability.
 
 ### Analytics & Anomaly Detection
 - Use Z-score (threshold > 3) for identifying spending anomalies.

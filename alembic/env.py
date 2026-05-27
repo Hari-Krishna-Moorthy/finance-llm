@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 # Import the Base and models for autogenerate support
 from app.database import Base
-from app.models import Account, Category, Transaction
+from app.models import Account, Category, StatementUpload, Transaction
 
 load_dotenv()
 
@@ -83,4 +83,3 @@ if context.is_offline_mode():
     run_migrations_offline()
 else:
     run_migrations_online()
-
