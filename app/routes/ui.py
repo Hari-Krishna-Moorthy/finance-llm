@@ -25,6 +25,8 @@ async def upload_page(request: Request, db: Session = Depends(get_db)):
     accounts = db.query(models.Account).all()
     return templates.TemplateResponse("upload.html", {"request": request, "accounts": accounts})
 
+from ..workers.tasks import process_statement_task
+
 @router.post("/upload")
 async def handle_upload(
     request: Request,
@@ -34,13 +36,12 @@ async def handle_upload(
 ):
     # Save the file temporarily
     os.makedirs("uploads", exist_ok=True)
-    file_path = f"uploads/{file.filename}"
+    file_path = os.path.abspath(f"uploads/{file.filename}")
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
     
-    # Trigger background task (Phase 3)
-    # For now, just a placeholder
-    print(f"File {file.filename} uploaded for account {account_id}")
+    # Trigger background task
+    process_statement_task.delay(file_path, account_id)
     
     return templates.TemplateResponse("upload.html", {
         "request": request, 
