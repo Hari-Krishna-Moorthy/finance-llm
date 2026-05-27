@@ -16,9 +16,11 @@ This file contains the foundational mandates, architectural patterns, and workfl
 ## Specialized Workflows
 
 ### Data Ingestion
-- Support CSV, XLSX, and PDF.
-- Use `pdfplumber` for PDF extraction.
+- Support CSV, XLSX, PDF, and **Markdown Text**.
+- Use `pdfplumber` for PDF extraction, including **password-protected** files.
+- Manual ingestion via Markdown tables is supported through a dedicated text area.
 - Standardize all transaction data into the `Transaction` model before database insertion.
+- Handle varied amount formats (e.g., "1,234.56 Dr", "500.00 Cr") and date formats.
 
 ### Reconciliation Engine
 - Internal transfers are identified by matching amounts and dates (±3 days) across different accounts.

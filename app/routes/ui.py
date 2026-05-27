@@ -41,29 +41,43 @@ async def transactions_page(request: Request, db: Session = Depends(get_db)):
         context={"transactions": transactions}
     )
 
-from ..workers.tasks import process_statement_task
+from ..workers.tasks import process_statement_task, process_markdown_task
+from typing import Optional
 
 @router.post("/upload")
 async def handle_upload(
     request: Request,
     account_id: int = Form(...),
-    file: UploadFile = File(...),
+    file: Optional[UploadFile] = File(None),
+    password: Optional[str] = Form(None),
+    markdown_text: Optional[str] = Form(None),
     db: Session = Depends(get_db)
 ):
-    # Save the file temporarily
-    os.makedirs("uploads", exist_ok=True)
-    file_path = os.path.abspath(f"uploads/{file.filename}")
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    message = ""
     
-    # Trigger background task
-    process_statement_task.delay(file_path, account_id)
+    # Process File
+    if file and file.filename:
+        os.makedirs("uploads", exist_ok=True)
+        file_path = os.path.abspath(f"uploads/{file.filename}")
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        process_statement_task.delay(file_path, account_id, password=password)
+        message += f"Successfully uploaded {file.filename}. "
+
+    # Process Markdown Text
+    if markdown_text and markdown_text.strip():
+        process_markdown_task.delay(markdown_text, account_id)
+        message += "Markdown text submitted for processing. "
     
+    if not message:
+        message = "No data provided."
+
     return templates.TemplateResponse(
         request=request, 
         name="upload.html", 
         context={
             "accounts": db.query(models.Account).all(),
-            "message": f"Successfully uploaded {file.filename}. Processing in background..."
+            "message": f"{message} Processing in background..."
         }
     )

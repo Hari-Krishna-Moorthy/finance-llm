@@ -38,9 +38,23 @@
                             </div>
                             <div class="mb-3">
                                 <label for="file" class="form-label">Statement File (CSV, XLSX, PDF)</label>
-                                <input type="file" name="file" id="file" class="form-control" required>
+                                <input type="file" name="file" id="file" class="form-control">
                             </div>
-                            <button type="submit" class="btn btn-primary">Upload and Process</button>
+                            <div class="mb-3">
+                                <label for="password" class="form-label">PDF Password (if protected)</label>
+                                <input type="password" name="password" id="password" class="form-control" placeholder="Optional">
+                            </div>
+                            
+                            <div class="hr-text text-center my-4">
+                                <span class="bg-white px-2 text-muted">OR</span>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="markdown_text" class="form-label">Paste Markdown Table</label>
+                                <textarea name="markdown_text" id="markdown_text" class="form-control" rows="10" placeholder="| Date | Description | Amount | ..."></textarea>
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary w-100">Process Data</button>
                         </form>
                     </div>
                 </div>
