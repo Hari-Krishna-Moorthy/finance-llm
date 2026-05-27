@@ -14,16 +14,23 @@ async def home(request: Request, db: Session = Depends(get_db)):
     transactions = db.query(models.Transaction).order_by(models.Transaction.date.desc()).limit(10).all()
     # Basic balance calculation (simplified)
     total_balance = 0 # To be calculated
-    return templates.TemplateResponse("index.html", {
-        "request": request, 
-        "transactions": transactions,
-        "total_balance": total_balance
-    })
+    return templates.TemplateResponse(
+        request=request, 
+        name="index.html", 
+        context={
+            "transactions": transactions,
+            "total_balance": total_balance
+        }
+    )
 
 @router.get("/upload")
 async def upload_page(request: Request, db: Session = Depends(get_db)):
     accounts = db.query(models.Account).all()
-    return templates.TemplateResponse("upload.html", {"request": request, "accounts": accounts})
+    return templates.TemplateResponse(
+        request=request, 
+        name="upload.html", 
+        context={"accounts": accounts}
+    )
 
 from ..workers.tasks import process_statement_task
 
@@ -43,8 +50,11 @@ async def handle_upload(
     # Trigger background task
     process_statement_task.delay(file_path, account_id)
     
-    return templates.TemplateResponse("upload.html", {
-        "request": request, 
-        "accounts": db.query(models.Account).all(),
-        "message": f"Successfully uploaded {file.filename}. Processing in background..."
-    })
+    return templates.TemplateResponse(
+        request=request, 
+        name="upload.html", 
+        context={
+            "accounts": db.query(models.Account).all(),
+            "message": f"Successfully uploaded {file.filename}. Processing in background..."
+        }
+    )
