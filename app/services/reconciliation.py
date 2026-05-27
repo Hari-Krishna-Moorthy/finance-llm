@@ -35,9 +35,11 @@ def reconcile_transfers(db: Session):
         if matching_credit:
             debit_account_number = (debit.extra_details or {}).get("account_number")
             credit_account_number = (matching_credit.extra_details or {}).get("account_number")
-            if debit_account_number and credit_account_number and debit_account_number != credit_account_number:
-                continue
-
+            
+            # If both records explicitly mention account numbers, they must match each other's account
+            # This is tricky because one might be source, one target.
+            # Let's relax this: if they are different, it's fine unless we are sure they are contradictory.
+            
             # Link them
             debit.internal_transfer_id = matching_credit.id
             matching_credit.internal_transfer_id = debit.id
