@@ -32,6 +32,15 @@ async def upload_page(request: Request, db: Session = Depends(get_db)):
         context={"accounts": accounts}
     )
 
+@router.get("/transactions")
+async def transactions_page(request: Request, db: Session = Depends(get_db)):
+    transactions = db.query(models.Transaction).order_by(models.Transaction.date.desc()).all()
+    return templates.TemplateResponse(
+        request=request, 
+        name="transactions.html", 
+        context={"transactions": transactions}
+    )
+
 from ..workers.tasks import process_statement_task
 
 @router.post("/upload")
