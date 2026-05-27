@@ -50,6 +50,77 @@ async def create_account(
         context={"accounts": accounts, "message": f"Account '{name}' created successfully!"}
     )
 
+@router.get("/reconcile")
+async def reconcile_page(request: Request, db: Session = Depends(get_db)):
+    unreconciled_debits = db.query(models.Transaction).filter(
+        models.Transaction.transaction_type == "Debit",
+        models.Transaction.internal_transfer_id == None
+    ).order_by(models.Transaction.date.desc()).all()
+    
+    unreconciled_credits = db.query(models.Transaction).filter(
+        models.Transaction.transaction_type == "Credit",
+        models.Transaction.internal_transfer_id == None
+    ).order_by(models.Transaction.date.desc()).all()
+    
+    # Fetch reconciled pairs (this is a bit complex in SQL, 
+    # but we can do it by finding all debits with an internal_transfer_id)
+    reconciled_debits = db.query(models.Transaction).filter(
+        models.Transaction.transaction_type == "Debit",
+        models.Transaction.internal_transfer_id != None
+    ).all()
+    
+    reconciled_pairs = []
+    for d in reconciled_debits:
+        c = db.query(models.Transaction).filter(models.Transaction.id == d.internal_transfer_id).first()
+        if c:
+            reconciled_pairs.append({"debit": d, "credit": c})
+            
+    return templates.TemplateResponse(
+        request=request, 
+        name="reconcile.html", 
+        context={
+            "unreconciled_debits": unreconciled_debits,
+            "unreconciled_credits": unreconciled_credits,
+            "reconciled_pairs": reconciled_pairs
+        }
+    )
+
+@router.post("/reconcile")
+async def manual_reconcile(
+    request: Request,
+    debit_id: int = Form(...),
+    credit_id: int = Form(...),
+    db: Session = Depends(get_db)
+):
+    debit = db.query(models.Transaction).filter(models.Transaction.id == debit_id).first()
+    credit = db.query(models.Transaction).filter(models.Transaction.id == credit_id).first()
+    
+    if debit and credit:
+        debit.internal_transfer_id = credit.id
+        credit.internal_transfer_id = debit.id
+        db.commit()
+        message = "Transactions linked successfully!"
+    else:
+        message = "Error: Transactions not found."
+        
+    return await reconcile_page(request, db)
+
+@router.post("/reconcile/unlink")
+async def manual_unlink(
+    request: Request,
+    debit_id: int = Form(...),
+    credit_id: int = Form(...),
+    db: Session = Depends(get_db)
+):
+    debit = db.query(models.Transaction).filter(models.Transaction.id == debit_id).first()
+    credit = db.query(models.Transaction).filter(models.Transaction.id == credit_id).first()
+    
+    if debit: debit.internal_transfer_id = None
+    if credit: credit.internal_transfer_id = None
+    db.commit()
+    
+    return await reconcile_page(request, db)
+
 @router.get("/upload")
 async def upload_page(request: Request, db: Session = Depends(get_db)):
     accounts = db.query(models.Account).all()
