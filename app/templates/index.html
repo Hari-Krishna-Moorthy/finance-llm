@@ -1,49 +1,64 @@
 {% extends "base.html" %}
 
 {% block title %}Dashboard - Finance LLM{% endblock %}
+{% block title_text %}Dashboard{% endblock %}
+{% block kicker %}Overview{% endblock %}
 
 {% block content %}
-<h2>Dashboard</h2>
-<hr>
-<div class="row">
-    <div class="col-md-4">
-        <div class="card text-white bg-primary mb-3">
+<section class="row g-4">
+    <div class="col-12 col-lg-4">
+        <div class="card metric-card fade-in">
             <div class="card-body">
-                <h5 class="card-title">Total Balance</h5>
-                <p class="card-text h3">₹ {{ total_balance }}</p>
+                <div>
+                    <div class="metric-label">Total Balance</div>
+                    <div class="metric-value">₹ {{ total_balance }}</div>
+                    <div class="help-text">Base currency value across tracked accounts.</div>
+                </div>
+                <span class="pill">Live</span>
             </div>
         </div>
     </div>
-</div>
+</section>
 
-<div class="mt-4">
-    <h3>Recent Transactions</h3>
-    <table class="table table-striped">
-        <thead>
-            <tr>
-                <th>Date</th>
-                <th>Description</th>
-                <th>Amount</th>
-                <th>Account</th>
-                <th>Category</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for t in transactions %}
-            <tr>
-                <td>{{ t.date }}</td>
-                <td>{{ t.description }}</td>
-                <td>₹ {{ t.base_amount_inr }}</td>
-                <td>{{ t.account.name if t.account else 'N/A' }}</td>
-                <td>{{ t.category.name if t.category else 'Uncategorized' }}</td>
-            </tr>
-            {% endfor %}
-            {% if not transactions %}
-            <tr>
-                <td colspan="5" class="text-center">No recent transactions.</td>
-            </tr>
-            {% endif %}
-        </tbody>
-    </table>
-</div>
+<section class="page-card card">
+    <div class="card-body">
+        <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
+            <div>
+                <h2 class="h5 mb-1">Recent Transactions</h2>
+                <div class="help-text">Latest activity from your connected accounts.</div>
+            </div>
+        </div>
+        <div class="table-wrap">
+            <table class="table align-middle">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Description</th>
+                        <th>Amount</th>
+                        <th>Account</th>
+                        <th>Category</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for t in transactions %}
+                    <tr>
+                        <td>{{ t.date }}</td>
+                        <td>{{ t.description }}</td>
+                        <td>₹ {{ t.base_amount_inr }}</td>
+                        <td>{{ t.account.name if t.account else 'N/A' }}</td>
+                        <td>{{ t.category.name if t.category else 'Uncategorized' }}</td>
+                    </tr>
+                    {% endfor %}
+                    {% if not transactions %}
+                    <tr>
+                        <td colspan="5">
+                            <div class="empty-state">No recent transactions.</div>
+                        </td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
 {% endblock %}

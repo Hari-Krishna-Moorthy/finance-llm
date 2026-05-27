@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - Finance LLM{% endblock %}
+{% block title_text %}Settings & Workbench{% endblock %}
+{% block kicker %}Central control for balances, accounts, categories, and manual entries{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+    <div class="col-12 col-xl-4">
+        <div class="card page-card">
+            <div class="card-body">
+                <h2 class="h5 mb-3">Balance Control</h2>
+                <form action="/settings/balance" method="post" class="vstack gap-3">
+                    <div>
+                        <label class="form-label">Manual balance adjustment</label>
+                        <input type="number" step="0.01" name="balance_adjustment" class="form-control" value="{{ settings.balance_adjustment }}">
+                        <div class="help-text mt-2">Use this to add or subtract an opening correction.</div>
+                    </div>
+                    <button class="btn btn-primary" type="submit">Save balance adjustment</button>
+                </form>
+                <hr class="my-4 border-opacity-25">
+                <form action="/settings/self-transfer" method="post" class="d-flex align-items-center justify-content-between gap-3">
+                    <div>
+                        <div class="fw-semibold">Exclude “Self transfer” from balance</div>
+                        <div class="help-text">Recommended so internal moves do not affect net balance.</div>
+                    </div>
+                    <div class="form-check form-switch m-0">
+                        <input class="form-check-input" type="checkbox" role="switch" name="exclude_self_transfer_from_balance" {% if settings.exclude_self_transfer_from_balance == 'true' %}checked{% endif %}>
+                    </div>
+                    <button class="btn btn-outline-primary" type="submit">Save</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-xl-8">
+        <div class="card page-card">
+            <div class="card-body">
+                <h2 class="h5 mb-3">Manual Transaction</h2>
+                <form action="/settings/manual-transaction" method="post" class="row g-3">
+                    <div class="col-12 col-md-4">
+                        <label class="form-label">Account</label>
+                        <select name="account_id" class="form-select" required>
+                            {% for account in accounts %}
+                            <option value="{{ account.id }}">{{ account.name }} ({{ account.account_type }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <label class="form-label">Date</label>
+                        <input type="date" name="date_value" class="form-control" required>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <label class="form-label">Transaction Type</label>
+                        <select name="transaction_type" class="form-select" required>
+                            <option value="Debit">Debit</option>
+                            <option value="Credit">Credit</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label class="form-label">Description</label>
+                        <input type="text" name="description" class="form-control" placeholder="Add a manual transaction" required>
+                    </div>
+                    <div class="col-12 col-md-3">
+                        <label class="form-label">Amount</label>
+                        <input type="number" step="0.01" name="amount" class="form-control" required>
+                    </div>
+                    <div class="col-12 col-md-3">
+                        <label class="form-label">Currency</label>
+                        <input type="text" name="currency" class="form-control" value="INR">
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label class="form-label">Category</label>
+                        <select name="category_id" class="form-select">
+                            <option value="">Uncategorized</option>
+                            {% for category in categories %}
+                            <option value="{{ category.id }}">{{ category.name }}{% if category.is_custom %} (Custom){% endif %}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-12 d-grid">
+                        <button class="btn btn-primary" type="submit">Add transaction</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-lg-6">
+        <div class="card page-card">
+            <div class="card-body">
+                <h2 class="h5 mb-3">Add Account</h2>
+                <form action="/accounts" method="post" class="row g-3">
+                    <div class="col-12 col-md-6">
+                        <input type="text" name="name" class="form-control" placeholder="Account name" required>
+                    </div>
+                    <div class="col-12 col-md-3">
+                        <input type="text" name="account_type" class="form-control" placeholder="Type" value="Checking" required>
+                    </div>
+                    <div class="col-12 col-md-3">
+                        <input type="text" name="currency" class="form-control" value="INR">
+                    </div>
+                    <div class="col-12 d-grid">
+                        <button class="btn btn-outline-primary" type="submit">Create account</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-lg-6">
+        <div class="card page-card">
+            <div class="card-body">
+                <h2 class="h5 mb-3">Add Category</h2>
+                <form action="/categories" method="post" class="row g-3">
+                    <div class="col-12 col-md-5">
+                        <input type="text" name="name" class="form-control" placeholder="Category name" required>
+                    </div>
+                    <div class="col-12 col-md-5">
+                        <input type="text" name="description" class="form-control" placeholder="Optional description">
+                    </div>
+                    <div class="col-12 col-md-2 d-grid">
+                        <button class="btn btn-outline-primary" type="submit">Add</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12">
+        <div class="card page-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h2 class="h5 mb-0">UPI ID Categorization</h2>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="filterUntagged" {% if only_untagged %}checked{% endif %} onchange="window.location.href='/settings?only_untagged=' + this.checked">
+                        <label class="form-check-label" for="filterUntagged">Only un-tagged</label>
+                    </div>
+                </div>
+                <div class="help-text mb-3">Bulk categorize transactions by UPI ID. Sorted by transaction count.</div>
+                <div class="table-wrap">
+                    <table class="table align-middle">
+                        <thead>
+                            <tr>
+                                <th>UPI ID</th>
+                                <th>Transaction Count</th>
+                                <th>Category</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for summary in upi_summaries %}
+                            <tr>
+                                <td><code>{{ summary.upi_id }}</code></td>
+                                <td>{{ summary.count }}</td>
+                                <form action="/settings/upi-categorize" method="post">
+                                    <input type="hidden" name="upi_id" value="{{ summary.upi_id }}">
+                                    <input type="hidden" name="only_untagged_current" value="{{ only_untagged }}">
+                                    <td>
+                                        <select name="category_id" class="form-select form-select-sm">
+                                            <option value="">Uncategorized</option>
+                                            {% for category in categories %}
+                                            <option value="{{ category.id }}" {% if summary.category_id == category.id %}selected{% endif %}>
+                                                {{ category.name }}
+                                            </option>
+                                            {% endfor %}
+                                        </select>
+                                    </td>
+                                    <td>
+                                        <button type="submit" class="btn btn-sm btn-outline-primary">Update All</button>
+                                    </td>
+                                </form>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

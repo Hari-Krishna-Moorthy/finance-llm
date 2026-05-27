@@ -1,88 +1,154 @@
 {% extends "base.html" %}
 
 {% block title %}Transactions - Finance LLM{% endblock %}
+{% block title_text %}Transactions{% endblock %}
+{% block kicker %}Review and categorize activity{% endblock %}
 
 {% block content %}
-<h2>All Transactions</h2>
-<hr>
-
-<div class="card mb-4">
-    <div class="card-body">
-        <h5 class="card-title">Add Custom Category</h5>
-        <form action="/categories" method="post" class="row g-3">
-            <div class="col-md-4">
-                <input type="text" name="name" class="form-control" placeholder="Category name" required>
+<div class="row g-4">
+    <div class="col-12">
+        <div class="card page-card">
+            <div class="card-body">
+                <form method="get" action="/transactions" class="row g-3 align-items-end">
+                    <div class="col-12 col-lg-3">
+                        <label class="form-label">Quick Range</label>
+                        <select name="range" class="form-select">
+                            <option value="1d" {% if selected_range == '1d' %}selected{% endif %}>1 day</option>
+                            <option value="7d" {% if selected_range == '7d' %}selected{% endif %}>7 days</option>
+                            <option value="30d" {% if selected_range == '30d' %}selected{% endif %}>30 days</option>
+                            <option value="60d" {% if selected_range == '60d' %}selected{% endif %}>60 days</option>
+                            <option value="90d" {% if selected_range == '90d' %}selected{% endif %}>90 days</option>
+                            <option value="6m" {% if selected_range == '6m' %}selected{% endif %}>6 months</option>
+                            <option value="1y" {% if selected_range == '1y' %}selected{% endif %}>1 year</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-lg-2">
+                        <label class="form-label">From</label>
+                        <input type="date" name="from_date" class="form-control" value="{{ from_date }}">
+                    </div>
+                    <div class="col-12 col-lg-2">
+                        <label class="form-label">To</label>
+                        <input type="date" name="to_date" class="form-control" value="{{ to_date }}">
+                    </div>
+                    <div class="col-12 col-lg-3">
+                        <label class="form-label">Account Type</label>
+                        <select name="account_type" class="form-select">
+                            <option value="">All account types</option>
+                            {% for account_type_value in account_types %}
+                            <option value="{{ account_type_value }}" {% if selected_account_type == account_type_value %}selected{% endif %}>
+                                {{ account_type_value }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-12 col-lg-2 d-grid">
+                        <button type="submit" class="btn btn-primary">Apply</button>
+                    </div>
+                </form>
             </div>
-            <div class="col-md-6">
-                <input type="text" name="description" class="form-control" placeholder="Optional description">
-            </div>
-            <div class="col-md-2 d-grid">
-                <button type="submit" class="btn btn-primary">Add Category</button>
-            </div>
-        </form>
-        <small class="text-muted">Default categories are preloaded. Custom categories are marked separately.</small>
+        </div>
     </div>
-</div>
 
-<div class="card">
-    <div class="card-body">
-        <table class="table table-hover">
-            <thead>
-                <tr>
-                    <th>Date</th>
-                    <th>Description</th>
-                    <th>Amount</th>
-                    <th>Type</th>
-                    <th>Account</th>
-                    <th>Category</th>
-                    <th>Currency</th>
-                    <th>Tax</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for t in transactions %}
-                <tr>
-                    <td>{{ t.date }}</td>
-                    <td>{{ t.description }}</td>
-                    <td>₹ {{ t.base_amount_inr }}</td>
-                    <td>
-                        <span class="badge {{ 'badge-debit' if t.transaction_type == 'Debit' else 'badge-credit' }}">
-                            {{ t.transaction_type }}
-                        </span>
-                    </td>
-                    <td>{{ t.account.name if t.account else 'N/A' }}</td>
-                    <td>
-                        <form action="/transactions/{{ t.id }}/category" method="post" class="d-flex gap-2 align-items-center">
-                            <select name="category_id" class="form-select form-select-sm" required>
-                                {% for category in categories %}
-                                <option value="{{ category.id }}" {% if t.category_id == category.id %}selected{% endif %}>
-                                    {{ category.name }}{% if category.is_custom %} (Custom){% endif %}
-                                </option>
-                                {% endfor %}
-                            </select>
-                            <button type="submit" class="btn btn-sm btn-outline-primary">Save</button>
-                        </form>
-                        <div class="mt-1 text-muted small">
-                            Current: {{ t.category.name if t.category else 'Uncategorized' }}
-                        </div>
-                    </td>
-                    <td>{{ t.original_currency }}</td>
-                    <td>
-                        {% if t.is_tax_deductible %}
-                        <span class="badge bg-info text-dark">Tax: {{ t.tax_category }}</span>
-                        {% else %}
-                        -
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-                {% if not transactions %}
-                <tr>
-                    <td colspan="8" class="text-center">No transactions found.</td>
-                </tr>
-                {% endif %}
-            </tbody>
-        </table>
+    <div class="col-12">
+        <div class="card page-card">
+            <div class="card-body">
+                <h2 class="h5 mb-1">Add Custom Category</h2>
+                <p class="help-text mb-4">Create your own category when the defaults do not fit.</p>
+                <form action="/categories" method="post" class="row g-3">
+                    <div class="col-12 col-lg-4">
+                        <input type="text" name="name" class="form-control" placeholder="Category name" required>
+                    </div>
+                    <div class="col-12 col-lg-6">
+                        <input type="text" name="description" class="form-control" placeholder="Optional description">
+                    </div>
+                    <div class="col-12 col-lg-2 d-grid">
+                        <button type="submit" class="btn btn-primary">Add Category</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12">
+        <div class="card page-card">
+            <div class="card-body">
+                <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
+                    <div>
+                        <h2 class="h5 mb-1">All Transactions</h2>
+                        <div class="help-text">Assign categories directly from the table.</div>
+                    </div>
+                </div>
+                <div class="table-wrap">
+                    <table class="table align-middle">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Description</th>
+                                <th>Amount</th>
+                                <th>Type</th>
+                                <th>Account</th>
+                                <th>Category</th>
+                                <th>Currency</th>
+                                <th>Tax</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for t in transactions %}
+                            <tr>
+                                <td>{{ t.date }}</td>
+                                <td>{{ t.description }}</td>
+                                <td>₹ {{ t.base_amount_inr }}</td>
+                                <td>
+                                    <span class="badge {{ 'badge-debit' if t.transaction_type == 'Debit' else 'badge-credit' }}">
+                                        {{ t.transaction_type }}
+                                    </span>
+                                </td>
+                                <td>{{ t.account.name if t.account else 'N/A' }}</td>
+                                <td>
+                                    <form id="transaction-form-{{ t.id }}" action="/transactions/{{ t.id }}/category" method="post" class="d-flex gap-2 align-items-center">
+                                        <select name="category_id" class="form-select form-select-sm" required>
+                                            {% for category in categories %}
+                                            <option value="{{ category.id }}" {% if t.category_id == category.id %}selected{% endif %}>
+                                                {{ category.name }}{% if category.is_custom %} (Custom){% endif %}
+                                            </option>
+                                            {% endfor %}
+                                        </select>
+                                        <button type="submit" class="btn btn-sm btn-outline-primary">Save</button>
+                                    </form>
+                                    {% if t.extra_details and t.extra_details.upi_id %}
+                                    <button
+                                        type="button"
+                                        class="btn btn-sm btn-outline-secondary mt-2 js-propagate-upi"
+                                        data-target-form="transaction-form-{{ t.id }}"
+                                        data-upi-id="{{ t.extra_details['upi_id'] }}"
+                                    >
+                                        Apply to same UPI payments: {{ t.extra_details['upi_id'] }}
+                                    </button>
+                                    {% endif %}
+                                    <div class="mt-1 text-muted small">
+                                        Current: {{ t.category.name if t.category else 'Uncategorized' }}
+                                    </div>
+                                </td>
+                                <td>{{ t.original_currency }}</td>
+                                <td>
+                                    {% if t.is_tax_deductible %}
+                                    <span class="badge bg-info text-dark">Tax: {{ t.tax_category }}</span>
+                                    {% else %}
+                                    -
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            {% if not transactions %}
+                            <tr>
+                                <td colspan="8"><div class="empty-state">No transactions found.</div></td>
+                            </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}
