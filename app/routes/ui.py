@@ -488,6 +488,9 @@ async def reprocess_upload(
         },
     )
 
+from datetime import date
+import markdown
+
 @router.get("/stocks/{ticker}/data")
 async def get_stock_chart_data(ticker: str, db: Session = Depends(get_db)):
     analyzer = StockAnalyzer(db)
@@ -497,19 +500,46 @@ async def get_stock_chart_data(ticker: str, db: Session = Depends(get_db)):
     return data
 
 @router.get("/stocks/{ticker}/ai-analysis")
-async def get_stock_ai_analysis(ticker: str, db: Session = Depends(get_db)):
-    analyzer = StockAnalyzer(db)
-    # We only need the latest data for the prompt
-    data = analyzer.get_historical_indicators(ticker, period="3mo")
-    if not data:
-        return JSONResponse({"status": "error", "message": "Ticker not found"}, status_code=404)
+async def get_stock_ai_analysis(ticker: str, check_cache_only: bool = False, db: Session = Depends(get_db)):
+    today = date.today()
+    
+    # Check if analysis was already generated today
+    existing = db.query(models.AIAnalysisResult).filter(
+        models.AIAnalysisResult.ticker == ticker,
+        models.AIAnalysisResult.generated_date == today
+    ).first()
+    
+    if existing:
+        analysis_text = existing.analysis_text
+    else:
+        if check_cache_only:
+            return JSONResponse({"status": "not_found"})
+
+        analyzer = StockAnalyzer(db)
+        # We only need the latest data for the prompt
+        data = analyzer.get_historical_indicators(ticker, period="3mo")
+        if not data:
+            return JSONResponse({"status": "error", "message": "Ticker not found"}, status_code=404)
+            
+        latest_data = data[-1] # The last row has the most recent indicators
         
-    latest_data = data[-1] # The last row has the most recent indicators
+        # Generate analysis
+        analysis_text = generate_swing_trade_setup(ticker, latest_data)
+        
+        # Cache it in DB
+        new_analysis = models.AIAnalysisResult(
+            ticker=ticker,
+            analysis_text=analysis_text,
+            generated_date=today
+        )
+        db.add(new_analysis)
+        db.commit()
     
-    # Generate analysis
-    analysis_text = generate_swing_trade_setup(ticker, latest_data)
+    # Convert markdown to HTML with table support
+    html_output = markdown.markdown(analysis_text, extensions=['tables', 'fenced_code', 'nl2br'])
     
-    import markdown
-    html_output = markdown.markdown(analysis_text)
+    # Inject Bootstrap classes into the table
+    html_output = html_output.replace('<table>', '<table class="table table-bordered table-striped table-hover mt-3">')
+    html_output = html_output.replace('<thead>', '<thead class="table-dark">')
     
     return JSONResponse({"status": "success", "analysis_html": html_output})

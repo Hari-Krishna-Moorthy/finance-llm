@@ -3,6 +3,9 @@ from ..database import SessionLocal
 from ..services.ingestion import process_file, process_markdown_text
 from ..services.upload_tracking import mark_statement_upload_processed
 from ..services.stock_analyzer import StockAnalyzer
+from ..services.llm_analysis import generate_swing_trade_setup
+from ..models import AIAnalysisResult
+from datetime import date
 import time
 
 @celery_app.task(name="process_statement_task")
@@ -25,6 +28,45 @@ def process_markdown_task(text: str, account_id: int):
         return {"status": "success"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+@celery_app.task(name="generate_ai_analysis_task")
+def generate_ai_analysis_task(ticker: str):
+    db = SessionLocal()
+    try:
+        today = date.today()
+        
+        # Check if already exists just in case
+        existing = db.query(AIAnalysisResult).filter(
+            AIAnalysisResult.ticker == ticker,
+            AIAnalysisResult.generated_date == today
+        ).first()
+        
+        if existing:
+            return {"status": "success", "message": "Already generated"}
+
+        analyzer = StockAnalyzer(db)
+        data = analyzer.get_historical_indicators(ticker, period="3mo")
+        if not data:
+            return {"status": "error", "message": "Ticker not found"}
+            
+        latest_data = data[-1]
+        
+        # Generate analysis
+        analysis_text = generate_swing_trade_setup(ticker, latest_data)
+        
+        # Cache it in DB
+        new_analysis = AIAnalysisResult(
+            ticker=ticker,
+            analysis_text=analysis_text,
+            generated_date=today
+        )
+        db.add(new_analysis)
+        db.commit()
+        return {"status": "success"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+    finally:
+        db.close()
 
 @celery_app.task(name="scan_us_markets_task")
 def scan_us_markets_task():

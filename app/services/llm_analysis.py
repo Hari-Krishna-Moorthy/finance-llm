@@ -63,22 +63,27 @@ VALIDATION:
 
 OUTPUT FORMAT:
 
-Current Price: $
-Trend:
-Support:
-Resistance:
-Entry:
-Stop Loss:
-Target:
-Risk:
-Reward:
-RR:
-Suggested Position Size:
-Trade Type:
-Confidence:
-Reasoning:
+You MUST return the output EXACTLY as a Markdown table. Do NOT add any preamble or text before the table.
+For the "Support", "Resistance", "Entry", "Stop Loss", and "Target" rows, you MUST include a brief comment explaining the rationale (e.g., "(EMA10)", "(Recent swing low)", "(Breakout level)").
 
-Use concise professional trading language.
+| Metric | Value & Comments |
+| :--- | :--- |
+| **Current Price** | $ |
+| **Trend** |  |
+| **Support** | $ (comment) |
+| **Resistance** | $ (comment) |
+| **Entry** | $ (comment) |
+| **Stop Loss** | $ (comment) |
+| **Target** | $ (comment) |
+| **Risk** | $ |
+| **Reward** | $ |
+| **RR** |  |
+| **Suggested Position Size** |  |
+| **Trade Type** |  |
+| **Confidence** | /100 |
+
+### Reasoning
+(Provide your concise professional trading language reasoning here, below the table.)
 
 LATEST TECHNICAL DATA FOR {ticker}:
 Current Price: ${current_data.get('Close', 'N/A')}

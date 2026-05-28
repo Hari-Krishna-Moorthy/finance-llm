@@ -252,7 +252,8 @@ class StockAnalyzer:
         # Convert index (datetime) to string
         df.index = df.index.strftime("%Y-%m-%d")
         
-        # Filter out NaN rows (from rolling windows)
-        df = df.dropna(subset=["SMA200"]) # Wait, SMA200 needs 200 days, maybe dropna for RSI instead to see more
+        # Replace NaN with None for JSON serialization, don't drop rows because
+        # short periods (e.g. 3mo) won't have SMA200 and would be completely dropped.
+        df = df.replace({np.nan: None})
         
         return df.reset_index().to_dict(orient="records")
