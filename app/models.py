@@ -87,3 +87,71 @@ class AppSetting(Base):
     key = Column(String, unique=True, index=True, nullable=False)
     value = Column(String, nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+# US Stock Momentum Analyzer Models
+
+class StockSignal(Base):
+    __tablename__ = "stock_signals"
+
+    id = Column(Integer, primary_key=True, index=True)
+    ticker = Column(String, index=True, nullable=False)
+    company_name = Column(String)
+    current_price = Column(Numeric(15, 2))
+    signal_type = Column(String)  # Strong Buy, Buy, etc.
+    score = Column(Integer)
+    status = Column(String)  # Active, Closed
+    suggested_entry = Column(String)
+    suggested_stop_loss = Column(Numeric(15, 2))
+    suggested_target = Column(Numeric(15, 2))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class TechnicalIndicator(Base):
+    __tablename__ = "technical_indicators"
+
+    id = Column(Integer, primary_key=True, index=True)
+    ticker = Column(String, index=True, nullable=False)
+    rsi = Column(Float)
+    macd_val = Column(Float)
+    macd_signal = Column(Float)
+    ema10 = Column(Float)
+    ema20 = Column(Float)
+    sma50 = Column(Float)
+    sma200 = Column(Float)
+    relative_strength = Column(Float)  # vs SPY
+    volume_ratio = Column(Float)  # relative volume
+    calculated_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class SupportResistanceLevel(Base):
+    __tablename__ = "support_resistance_levels"
+
+    id = Column(Integer, primary_key=True, index=True)
+    ticker = Column(String, index=True, nullable=False)
+    support_price = Column(Numeric(15, 2))
+    resistance_price = Column(Numeric(15, 2))
+    is_breakout = Column(Boolean, default=False)
+    detected_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class MomentumScore(Base):
+    __tablename__ = "momentum_scores"
+
+    id = Column(Integer, primary_key=True, index=True)
+    ticker = Column(String, index=True, nullable=False)
+    overall_score = Column(Integer)
+    support_score = Column(Integer)
+    ema_score = Column(Integer)
+    sma_score = Column(Integer)
+    rs_score = Column(Integer)
+    vol_score = Column(Integer)
+    macd_score = Column(Integer)
+    scored_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class HistoricalScanResult(Base):
+    __tablename__ = "historical_scan_results"
+
+    id = Column(Integer, primary_key=True, index=True)
+    ticker = Column(String, index=True, nullable=False)
+    score = Column(Integer)
+    classification = Column(String)
+    price_at_scan = Column(Numeric(15, 2))
+    scanned_at = Column(DateTime(timezone=True), server_default=func.now())
