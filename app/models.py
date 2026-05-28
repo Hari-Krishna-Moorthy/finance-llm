@@ -155,3 +155,11 @@ class HistoricalScanResult(Base):
     classification = Column(String)
     price_at_scan = Column(Numeric(15, 2))
     scanned_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class AIAnalysisResult(Base):
+    __tablename__ = "ai_analysis_results"
+
+    id = Column(Integer, primary_key=True, index=True)
+    ticker = Column(String, index=True, nullable=False)
+    analysis_text = Column(String, nullable=False)
+    generated_date = Column(Date, default=func.current_date(), index=True, nullable=False)
