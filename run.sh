@@ -1,5 +1,13 @@
 #!/bin/bash
 
+# Handle flags
+if [[ "$1" == "--scan" ]]; then
+    echo "Starting manual US stock market scan..."
+    ./scripts/migrate.sh
+    ./venv/bin/python3 scripts/manual_scan.py
+    exit 0
+fi
+
 # Run migrations first
 ./scripts/migrate.sh
 
