@@ -19,6 +19,7 @@ from ..services.categories import (
 from ..services.dashboard_state import get_dashboard_state, upsert_dashboard_state, sync_dashboard_metrics
 from ..services.app_settings import get_setting, upsert_setting
 from ..services.stock_analyzer import StockAnalyzer
+from ..services.llm_analysis import generate_swing_trade_setup
 import shutil
 import os
 from uuid import uuid4
@@ -494,3 +495,21 @@ async def get_stock_chart_data(ticker: str, db: Session = Depends(get_db)):
     if not data:
         return JSONResponse({"status": "error", "message": "Ticker not found"}, status_code=404)
     return data
+
+@router.get("/stocks/{ticker}/ai-analysis")
+async def get_stock_ai_analysis(ticker: str, db: Session = Depends(get_db)):
+    analyzer = StockAnalyzer(db)
+    # We only need the latest data for the prompt
+    data = analyzer.get_historical_indicators(ticker, period="3mo")
+    if not data:
+        return JSONResponse({"status": "error", "message": "Ticker not found"}, status_code=404)
+        
+    latest_data = data[-1] # The last row has the most recent indicators
+    
+    # Generate analysis
+    analysis_text = generate_swing_trade_setup(ticker, latest_data)
+    
+    import markdown
+    html_output = markdown.markdown(analysis_text)
+    
+    return JSONResponse({"status": "success", "analysis_html": html_output})
