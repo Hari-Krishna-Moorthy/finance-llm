@@ -405,7 +405,7 @@ async def update_theme(
     upsert_dashboard_state(db, "theme", theme)
     return JSONResponse({"status": "ok", "theme": theme})
 
-from ..workers.tasks import process_statement_task, process_markdown_task
+from ..workers.tasks import process_statement_task, process_markdown_task, generate_ai_analysis_task
 
 @router.post("/upload")
 async def handle_upload(
@@ -511,35 +511,32 @@ async def get_stock_ai_analysis(ticker: str, check_cache_only: bool = False, db:
     
     if existing:
         analysis_text = existing.analysis_text
+        # Convert markdown to HTML with table support
+        html_output = markdown.markdown(analysis_text, extensions=['tables', 'fenced_code', 'nl2br'])
+        
+        # Inject Bootstrap classes into the table
+        html_output = html_output.replace('<table>', '<table class="table table-bordered table-striped table-hover mt-3">')
+        html_output = html_output.replace('<thead>', '<thead class="table-dark">')
+        
+        return JSONResponse({"status": "success", "analysis_html": html_output})
     else:
-        if check_cache_only:
-            return JSONResponse({"status": "not_found"})
+        # If we are just checking cache or polling, return not_found
+        return JSONResponse({"status": "not_found"})
 
-        analyzer = StockAnalyzer(db)
-        # We only need the latest data for the prompt
-        data = analyzer.get_historical_indicators(ticker, period="3mo")
-        if not data:
-            return JSONResponse({"status": "error", "message": "Ticker not found"}, status_code=404)
-            
-        latest_data = data[-1] # The last row has the most recent indicators
-        
-        # Generate analysis
-        analysis_text = generate_swing_trade_setup(ticker, latest_data)
-        
-        # Cache it in DB
-        new_analysis = models.AIAnalysisResult(
-            ticker=ticker,
-            analysis_text=analysis_text,
-            generated_date=today
-        )
-        db.add(new_analysis)
-        db.commit()
+@router.post("/stocks/{ticker}/ai-analysis")
+async def post_stock_ai_analysis(ticker: str, db: Session = Depends(get_db)):
+    today = date.today()
     
-    # Convert markdown to HTML with table support
-    html_output = markdown.markdown(analysis_text, extensions=['tables', 'fenced_code', 'nl2br'])
+    # Check if analysis was already generated today
+    existing = db.query(models.AIAnalysisResult).filter(
+        models.AIAnalysisResult.ticker == ticker,
+        models.AIAnalysisResult.generated_date == today
+    ).first()
     
-    # Inject Bootstrap classes into the table
-    html_output = html_output.replace('<table>', '<table class="table table-bordered table-striped table-hover mt-3">')
-    html_output = html_output.replace('<thead>', '<thead class="table-dark">')
+    if existing:
+        return JSONResponse({"status": "success", "message": "Analysis already exists."})
     
-    return JSONResponse({"status": "success", "analysis_html": html_output})
+    # Trigger background task
+    generate_ai_analysis_task.delay(ticker)
+    
+    return JSONResponse({"status": "processing", "message": "Analysis started in background."})

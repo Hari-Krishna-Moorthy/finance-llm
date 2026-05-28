@@ -1,4 +1,10 @@
 import os
+# Fix for macOS fork crash in Celery (+[NSCharacterSet initialize] may have been in progress in another thread when fork() was called)
+os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
+# Fix for gRPC/Generative AI segfaults during process fork
+os.environ["GRPC_ENABLE_FORK_SUPPORT"] = "1"
+os.environ["GRPC_POLL_STRATEGY"] = "epoll1"
+
 from celery import Celery
 from dotenv import load_dotenv
 

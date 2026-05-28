@@ -1,10 +1,11 @@
 import os
-import google.generativeai as genai
 
 def generate_swing_trade_setup(ticker: str, current_data: dict) -> str:
     """
     Generates an AI-driven swing trade setup using Gemini.
     """
+    import google.generativeai as genai
+    
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         return "Error: GEMINI_API_KEY not set in environment variables. Please add it to your .env file."
