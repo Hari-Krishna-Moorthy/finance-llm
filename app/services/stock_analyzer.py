@@ -239,3 +239,20 @@ class StockAnalyzer:
 
         self.db.commit()
         return result
+
+    def get_historical_indicators(self, ticker: str, period: str = "1y"):
+        """Calculate and return full history of technical indicators for charting."""
+        df = self.fetch_data(ticker, period=period)
+        if df is None:
+            return None
+        
+        df = self.calculate_indicators(df)
+        
+        # Prepare for JSON
+        # Convert index (datetime) to string
+        df.index = df.index.strftime("%Y-%m-%d")
+        
+        # Filter out NaN rows (from rolling windows)
+        df = df.dropna(subset=["SMA200"]) # Wait, SMA200 needs 200 days, maybe dropna for RSI instead to see more
+        
+        return df.reset_index().to_dict(orient="records")

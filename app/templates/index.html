@@ -20,7 +20,82 @@
     </div>
 </section>
 
-<section class="page-card card">
+<section class="page-card card mt-4">
+    <div class="card-body">
+        <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
+            <div>
+                <h2 class="h5 mb-1">US Strong Buy Opportunities</h2>
+                <div class="help-text">High-probability momentum candidates based on professional technical analysis.</div>
+            </div>
+            <span class="badge bg-success">Automated Scan</span>
+        </div>
+        
+        <div class="table-wrap">
+            <table class="table align-middle table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Ticker</th>
+                        <th>Price & Score</th>
+                        <th>Technicals (RSI/MACD)</th>
+                        <th>Trend (EMA/SMA)</th>
+                        <th>Support/Resistance</th>
+                        <th>Strategy (Entry/Target/SL)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in stock_signals %}
+                    {% set s = item.signal %}
+                    {% set ind = item.indicator %}
+                    {% set sr = item.sr %}
+                    <tr>
+                        <td>
+                            <div class="fw-bold text-success">{{ s.ticker }}</div>
+                            <div class="small text-muted">{{ s.company_name }}</div>
+                            <button class="btn btn-sm btn-outline-primary mt-2" onclick="openChartModal('{{ s.ticker }}')">
+                                View Full Analysis
+                            </button>
+                        </td>
+                        <td>
+                            <div class="fw-bold">${{ s.current_price }}</div>
+                            <div class="progress mt-1" style="height: 6px;">
+                                <div class="progress-bar bg-success" role="progressbar" style="width: {{ s.score }}%;" aria-valuenow="{{ s.score }}" aria-valuemin="0" aria-valuemax="100"></div>
+                            </div>
+                            <div class="small fw-semibold mt-1">{{ s.score }}/100 - {{ s.signal_type }}</div>
+                        </td>
+                        <td>
+                            <div class="small">RSI: <span class="{% if ind.rsi > 70 %}text-danger{% elif ind.rsi > 55 %}text-success{% else %}text-muted{% endif %}">{{ "%.2f"|format(ind.rsi) }}</span></div>
+                            <div class="small">MACD: <span class="{% if ind.macd_val > ind.macd_signal %}text-success{% else %}text-danger{% endif %}">{{ "%.2f"|format(ind.macd_val) }}</span></div>
+                        </td>
+                        <td>
+                            <div class="small">EMA Trend: <span class="{% if ind.ema10 > ind.ema20 %}text-success{% else %}text-danger{% endif %}">{% if ind.ema10 > ind.ema20 %}Bullish{% else %}Bearish{% endif %}</span></div>
+                            <div class="small">SMA Cross: <span class="{% if ind.sma50 > ind.sma200 %}text-success{% else %}text-danger{% endif %}">{% if ind.sma50 > ind.sma200 %}Golden{% else %}Death{% endif %}</span></div>
+                        </td>
+                        <td>
+                            <div class="small">Sup: <span class="text-success">${{ sr.support_price }}</span></div>
+                            <div class="small">Res: <span class="text-danger">${{ sr.resistance_price }}</span></div>
+                            {% if sr.is_breakout %}<span class="badge bg-success small">Breakout!</span>{% endif %}
+                        </td>
+                        <td>
+                            <div class="small fw-bold">Entry: {{ s.suggested_entry }}</div>
+                            <div class="small text-success">Target: ${{ s.suggested_target }}</div>
+                            <div class="small text-danger">Stop: ${{ s.suggested_stop_loss }}</div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% if not stock_signals %}
+                    <tr>
+                        <td colspan="6">
+                            <div class="empty-state">No strong buy opportunities found. Scanning US markets...</div>
+                        </td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+
+<section class="page-card card mt-4">
     <div class="card-body">
         <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
             <div>
@@ -61,4 +136,170 @@
         </div>
     </div>
 </section>
+
+<!-- Chart Modal -->
+<div class="modal fade" id="chartModal" tabindex="-1" aria-labelledby="chartModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="chartModalLabel">Technical Analysis: <span id="modalTicker"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="chartLoading" class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2 text-muted">Fetching historical data & calculating indicators...</p>
+                </div>
+                <div id="chartContainer" style="display: none;">
+                    <div style="height: 400px;"><canvas id="priceChart"></canvas></div>
+                    <div class="row mt-3">
+                        <div class="col-md-6" style="height: 200px;"><canvas id="rsiChart"></canvas></div>
+                        <div class="col-md-6" style="height: 200px;"><canvas id="macdChart"></canvas></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let priceChartInstance = null;
+    let rsiChartInstance = null;
+    let macdChartInstance = null;
+    const modal = new bootstrap.Modal(document.getElementById('chartModal'));
+
+    async function openChartModal(ticker) {
+        document.getElementById('modalTicker').textContent = ticker;
+        document.getElementById('chartLoading').style.display = 'block';
+        document.getElementById('chartContainer').style.display = 'none';
+        
+        modal.show();
+
+        try {
+            const response = await fetch(`/stocks/${ticker}/data`);
+            const data = await response.json();
+            
+            if (response.ok) {
+                renderCharts(data);
+                document.getElementById('chartLoading').style.display = 'none';
+                document.getElementById('chartContainer').style.display = 'block';
+            } else {
+                alert(data.message || "Failed to load data");
+                modal.hide();
+            }
+        } catch (error) {
+            console.error("Error fetching chart data:", error);
+            alert("Error fetching chart data.");
+            modal.hide();
+        }
+    }
+
+    function renderCharts(data) {
+        // Destroy existing charts if they exist
+        if (priceChartInstance) priceChartInstance.destroy();
+        if (rsiChartInstance) rsiChartInstance.destroy();
+        if (macdChartInstance) macdChartInstance.destroy();
+
+        const labels = data.map(row => row.Date);
+        const prices = data.map(row => row.Close);
+        const ema10 = data.map(row => row.EMA10);
+        const ema20 = data.map(row => row.EMA20);
+        const sma50 = data.map(row => row.SMA50);
+        const rsi = data.map(row => row.RSI);
+        const macd = data.map(row => row.MACD);
+        const macdSignal = data.map(row => row.MACD_Signal);
+        
+        const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+        const gridColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
+        const textColor = isDark ? '#adb5bd' : '#6c757d';
+
+        // Price Chart (Price, EMA10, EMA20)
+        const ctxPrice = document.getElementById('priceChart').getContext('2d');
+        priceChartInstance = new Chart(ctxPrice, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    { label: 'Close Price', data: prices, borderColor: '#fff', backgroundColor: 'rgba(255,255,255,0.1)', fill: true, tension: 0.1, pointRadius: 0, borderWidth: 2 },
+                    { label: 'EMA 10', data: ema10, borderColor: '#0d6efd', borderDash: [5, 5], pointRadius: 0, borderWidth: 1 },
+                    { label: 'EMA 20', data: ema20, borderColor: '#ffc107', borderDash: [5, 5], pointRadius: 0, borderWidth: 1 },
+                    { label: 'SMA 50', data: sma50, borderColor: '#dc3545', pointRadius: 0, borderWidth: 1 }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: { legend: { labels: { color: textColor } } },
+                scales: {
+                    x: { grid: { color: gridColor }, ticks: { color: textColor, maxTicksLimit: 10 } },
+                    y: { grid: { color: gridColor }, ticks: { color: textColor } }
+                }
+            }
+        });
+
+        // RSI Chart
+        const ctxRsi = document.getElementById('rsiChart').getContext('2d');
+        rsiChartInstance = new Chart(ctxRsi, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    { label: 'RSI (14)', data: rsi, borderColor: '#198754', tension: 0.1, pointRadius: 0, borderWidth: 2 }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { labels: { color: textColor } } },
+                scales: {
+                    x: { display: false },
+                    y: { min: 0, max: 100, grid: { color: gridColor }, ticks: { color: textColor } }
+                }
+            },
+            plugins: [{
+                id: 'rsiZones',
+                beforeDraw: (chart) => {
+                    const ctx = chart.canvas.getContext('2d');
+                    const yAxis = chart.scales.y;
+                    const xAxis = chart.scales.x;
+                    ctx.save();
+                    ctx.fillStyle = 'rgba(25, 135, 84, 0.1)';
+                    ctx.fillRect(xAxis.left, yAxis.getPixelForValue(70), xAxis.width, yAxis.getPixelForValue(30) - yAxis.getPixelForValue(70));
+                    ctx.restore();
+                }
+            }]
+        });
+
+        // MACD Chart
+        const ctxMacd = document.getElementById('macdChart').getContext('2d');
+        const macdHist = macd.map((val, i) => val - macdSignal[i]);
+        macdChartInstance = new Chart(ctxMacd, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    { label: 'MACD', data: macd, borderColor: '#0d6efd', pointRadius: 0, borderWidth: 1.5 },
+                    { label: 'Signal', data: macdSignal, borderColor: '#ffc107', pointRadius: 0, borderWidth: 1.5 },
+                    { label: 'Histogram', type: 'bar', data: macdHist, backgroundColor: macdHist.map(v => v >= 0 ? 'rgba(25, 135, 84, 0.5)' : 'rgba(220, 53, 69, 0.5)') }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: { legend: { labels: { color: textColor } } },
+                scales: {
+                    x: { display: false },
+                    y: { grid: { color: gridColor }, ticks: { color: textColor } }
+                }
+            }
+        });
+    }
+</script>
 {% endblock %}

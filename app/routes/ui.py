@@ -18,6 +18,7 @@ from ..services.categories import (
 )
 from ..services.dashboard_state import get_dashboard_state, upsert_dashboard_state, sync_dashboard_metrics
 from ..services.app_settings import get_setting, upsert_setting
+from ..services.stock_analyzer import StockAnalyzer
 import shutil
 import os
 from uuid import uuid4
@@ -31,6 +32,27 @@ async def home(request: Request, db: Session = Depends(get_db)):
     sync_dashboard_metrics(db)
     total_balance = get_dashboard_state(db, "total_balance", "0")
     theme = get_dashboard_state(db, "theme", "dark")
+    
+    # Fetch top US stock signals
+    stock_signals = (
+        db.query(models.StockSignal)
+        .filter(models.StockSignal.signal_type.in_(["Strong Buy", "Buy"]))
+        .order_by(models.StockSignal.score.desc())
+        .limit(7)
+        .all()
+    )
+    
+    # Build a consolidated list for the UI with indicators
+    enriched_signals = []
+    for signal in stock_signals:
+        indicator = db.query(models.TechnicalIndicator).filter(models.TechnicalIndicator.ticker == signal.ticker).order_by(models.TechnicalIndicator.calculated_at.desc()).first()
+        sr = db.query(models.SupportResistanceLevel).filter(models.SupportResistanceLevel.ticker == signal.ticker).order_by(models.SupportResistanceLevel.detected_at.desc()).first()
+        enriched_signals.append({
+            "signal": signal,
+            "indicator": indicator,
+            "sr": sr
+        })
+
     return templates.TemplateResponse(
         request=request, 
         name="index.html", 
@@ -38,6 +60,7 @@ async def home(request: Request, db: Session = Depends(get_db)):
             "transactions": transactions,
             "total_balance": total_balance,
             "theme": theme,
+            "stock_signals": enriched_signals,
         }
     )
 
@@ -463,3 +486,11 @@ async def reprocess_upload(
             "message": f"Reprocessing started for {upload.file_path.split('/')[-1]}",
         },
     )
+
+@router.get("/stocks/{ticker}/data")
+async def get_stock_chart_data(ticker: str, db: Session = Depends(get_db)):
+    analyzer = StockAnalyzer(db)
+    data = analyzer.get_historical_indicators(ticker)
+    if not data:
+        return JSONResponse({"status": "error", "message": "Ticker not found"}, status_code=404)
+    return data
