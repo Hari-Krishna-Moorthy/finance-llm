@@ -215,6 +215,7 @@
         // Reset AI Analyst tab
         document.getElementById('aiOutput').style.display = 'none';
         document.getElementById('aiOutput').innerHTML = '';
+        document.getElementById('btnGenerateAI').style.display = 'block';
         document.getElementById('btnGenerateAI').disabled = false;
         
         // Ensure Charts tab is active by default
@@ -222,6 +223,9 @@
         chartsTab.show();
 
         modal.show();
+        
+        // Check for existing AI analysis in the background
+        checkCachedAIAnalysis(ticker);
 
         try {
             const response = await fetch(`/stocks/${ticker}/data`);
@@ -242,6 +246,20 @@
         }
     }
 
+    async function checkCachedAIAnalysis(ticker) {
+        try {
+            const response = await fetch(`/stocks/${ticker}/ai-analysis?check_cache_only=true`);
+            const data = await response.json();
+            if (response.ok && data.status === 'success') {
+                document.getElementById('aiOutput').innerHTML = data.analysis_html;
+                document.getElementById('aiOutput').style.display = 'block';
+                document.getElementById('btnGenerateAI').style.display = 'none'; // Hide if already generated today
+            }
+        } catch (e) {
+            console.error("Error checking cache:", e);
+        }
+    }
+
     async function generateAIAnalysis() {
         if (!currentModalTicker) return;
         
@@ -254,21 +272,47 @@
         output.style.display = 'none';
         
         try {
-            const response = await fetch(`/stocks/${currentModalTicker}/ai-analysis`);
-            const data = await response.json();
+            // Trigger the background job
+            const startResponse = await fetch(`/stocks/${currentModalTicker}/ai-analysis`, { method: 'POST' });
+            const startData = await startResponse.json();
             
-            if (response.ok && data.status === 'success') {
-                output.innerHTML = data.analysis_html;
+            if (!startResponse.ok) {
+                output.innerHTML = `<div class="alert alert-danger">${startData.message || 'Error starting analysis.'}</div>`;
                 output.style.display = 'block';
-            } else {
-                output.innerHTML = `<div class="alert alert-danger">${data.message || 'Error generating analysis.'}</div>`;
-                output.style.display = 'block';
+                loading.style.display = 'none';
+                btn.disabled = false;
+                return;
             }
+
+            // Poll for the result
+            const pollInterval = setInterval(async () => {
+                try {
+                    const pollResponse = await fetch(`/stocks/${currentModalTicker}/ai-analysis?check_cache_only=true`);
+                    const pollData = await pollResponse.json();
+                    
+                    if (pollResponse.ok && pollData.status === 'success') {
+                        clearInterval(pollInterval);
+                        output.innerHTML = pollData.analysis_html;
+                        output.style.display = 'block';
+                        btn.style.display = 'none'; // Hide button after generation
+                        loading.style.display = 'none';
+                    } else if (pollResponse.ok && pollData.status === 'error') {
+                        clearInterval(pollInterval);
+                        output.innerHTML = `<div class="alert alert-danger">${pollData.message || 'Error during background analysis.'}</div>`;
+                        output.style.display = 'block';
+                        btn.disabled = false;
+                        loading.style.display = 'none';
+                    }
+                    // If status is 'not_found' or 'processing', keep polling
+                } catch (e) {
+                    console.error("Polling error:", e);
+                }
+            }, 3000); // Poll every 3 seconds
+
         } catch (error) {
             console.error("Error fetching AI analysis:", error);
             output.innerHTML = `<div class="alert alert-danger">Network error fetching analysis.</div>`;
             output.style.display = 'block';
-        } finally {
             loading.style.display = 'none';
             btn.disabled = false;
         }
