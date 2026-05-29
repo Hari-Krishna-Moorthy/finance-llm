@@ -60,15 +60,38 @@ def test_calculate_indicators():
     assert pd.isna(df_indicators["SMA200"].iloc[0])
     assert not pd.isna(df_indicators["SMA200"].iloc[200])
 
-def test_detect_support_resistance():
+def test_detect_support_resistance_trending():
     db = _make_session()
     analyzer = StockAnalyzer(db)
-    df = generate_dummy_stock_data(50)
     
-    support, resistance, is_breakout = analyzer.detect_support_resistance(df, window=10)
-    assert isinstance(support, float)
-    assert isinstance(resistance, float)
-    assert isinstance(is_breakout, bool)
+    # Generate 100 days of data
+    # Days 0-50: Price is around $100
+    # Days 50-99: Price is around $300
+    # Day 100: Huge jump to $350 (Breakout)
+    dates = pd.date_range(start='2026-01-01', periods=101, freq='B')
+    prices = np.concatenate([
+        np.linspace(95, 105, 50),
+        np.linspace(295, 305, 50),
+        [350.0]
+    ])
+    df = pd.DataFrame({
+        'Open': prices,
+        'High': prices + 1,
+        'Low': prices - 1,
+        'Close': prices,
+        'Volume': 1000000
+    }, index=dates)
+    
+    # window=20. It should look at the last 20 days (where price is ~$300)
+    # and NOT return the $100 support from earlier.
+    support, resistance, is_breakout = analyzer.detect_support_resistance(df, window=20)
+    
+    # Recent low should be around 294 (295 - 1)
+    assert support > 250
+    assert support < 310
+    
+    # Because prices jumped to 350, it should be a clear breakout
+    assert is_breakout is True
 
 def test_calculate_relative_strength():
     db = _make_session()

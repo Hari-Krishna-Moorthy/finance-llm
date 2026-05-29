@@ -53,20 +53,20 @@ class StockAnalyzer:
 
     def detect_support_resistance(self, df: pd.DataFrame, window: int = 20):
         """Identify support and resistance levels using local minima and maxima."""
-        # Identify local minima and maxima
-        df["Min"] = df["Low"].rolling(window=window, center=True).min()
-        df["Max"] = df["High"].rolling(window=window, center=True).max()
+        # Use non-centered rolling window to avoid NaN on the latest rows
+        # We look at the recent price range
+        df["RecentLow"] = df["Low"].rolling(window=window).min()
+        df["RecentHigh"] = df["High"].rolling(window=window).max()
         
-        # Latest support/resistance
-        support = df["Min"].iloc[-1]
-        if pd.isna(support): support = df["Low"].min()
+        # Latest support/resistance from the last completed window
+        # To find 'true' support/resistance, we look at the min/max of the recent period
+        support = df["RecentLow"].iloc[-1]
+        resistance = df["RecentHigh"].iloc[-1]
         
-        resistance = df["Max"].iloc[-1]
-        if pd.isna(resistance): resistance = df["High"].max()
-        
-        # Breakout detection: price close > recent resistance
-        # Check against resistance from before the latest window
-        is_breakout = df["Close"].iloc[-1] > df["Max"].iloc[-window]
+        # Breakout detection: current close > previous window high
+        # We use the high from one bar ago to see if the current bar broke out of the established range
+        prev_window_high = df["RecentHigh"].iloc[-2] if len(df) > 1 else resistance
+        is_breakout = df["Close"].iloc[-1] > prev_window_high
         
         return float(support), float(resistance), bool(is_breakout)
 
@@ -220,20 +220,34 @@ class StockAnalyzer:
         except:
             signal.company_name = ticker
 
-        signal.current_price = Decimal(str(round(result["current_price"], 2)))
+        current_price = float(result["current_price"])
+        signal.current_price = Decimal(str(round(current_price, 2)))
         signal.signal_type = result["classification"]
         signal.score = result["score"]
         signal.status = "Active"
         
-        signal.suggested_entry = f"{result['support']:.2f} - {result['support']*1.02:.2f}"
-        signal.suggested_stop_loss = Decimal(str(round(result["support"] * 0.95, 2)))
-        signal.suggested_target = Decimal(str(round(result["resistance"] * 1.1, 2)))
+        # Suggested Strategy Logic:
+        # If breakout: entry is current price or slightly above.
+        # If near support: entry is a range between support and current.
+        if result["is_breakout"]:
+            entry_price = current_price
+            signal.suggested_entry = f"{entry_price:.2f} (Breakout)"
+            signal.suggested_stop_loss = Decimal(str(round(result["support"], 2)))
+            # Target 1.5x risk
+            risk = entry_price - result["support"]
+            if risk <= 0: risk = entry_price * 0.05 # Fallback
+            signal.suggested_target = Decimal(str(round(entry_price + (risk * 1.5), 2)))
+        else:
+            entry_price = result["support"] * 1.01
+            signal.suggested_entry = f"{entry_price:.2f} - {entry_price * 1.02:.2f}"
+            signal.suggested_stop_loss = Decimal(str(round(result["support"] * 0.98, 2)))
+            signal.suggested_target = Decimal(str(round(result["resistance"], 2)))
 
         hist = models.HistoricalScanResult(
             ticker=ticker,
             score=result["score"],
             classification=result["classification"],
-            price_at_scan=Decimal(str(round(result["current_price"], 2)))
+            price_at_scan=Decimal(str(round(current_price, 2)))
         )
         self.db.add(hist)
 
