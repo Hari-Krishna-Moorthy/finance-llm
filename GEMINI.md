@@ -1,3 +1,4 @@
+To resume this session: gemini --resume d2a101d2-f09f-4299-901e-873525ac48f9
 # Project Skill: Finance LLM Architect
 
 This file contains the foundational mandates, architectural patterns, and workflows for the `finance-llm` project. Adhere to these instructions for all modifications.
@@ -50,6 +51,13 @@ This file contains the foundational mandates, architectural patterns, and workfl
 ### Analytics & Anomaly Detection
 - Use Z-score (threshold > 3) for identifying spending anomalies.
 - Group by description and amount for recurring payment prediction.
+
+### US Stock Momentum Analyzer & AI Integration
+- Autonomous scanning of curated US equities (NASDAQ, NYSE, S&P 500) via background Celery tasks.
+- Technical analysis engine computes EMA, SMA, RSI, and MACD strictly using manual Pandas calculations to maintain environment compatibility and avoids gRPC fork issues on macOS by lazy loading imports (`OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES` and `GRPC_ENABLE_FORK_SUPPORT=1` required).
+- Scoring system ranks stocks (Strong Buy, Buy, Watchlist) based on confluence of bullish signals.
+- Generative AI integration (Google Gemini) provides professional swing-trade setups, cached per ticker/date in the database, with automatic Markdown-to-HTML table rendering for the UI.
+- Interactive Chart.js visualizations built into the dashboard for real-time charting of cached indicators.
 
 ## Testing Standards
 - **Reproduction:** Before fixing a bug, create a reproduction script or test case.

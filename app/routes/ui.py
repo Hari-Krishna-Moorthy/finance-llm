@@ -308,6 +308,36 @@ async def upi_categorize(
     )
 
 
+@router.post("/settings/scan-markets")
+async def trigger_market_scan(
+    request: Request,
+    db: Session = Depends(get_db),
+    only_untagged: bool = False
+):
+    scan_us_markets_task.delay()
+    
+    seed_default_categories(db)
+    accounts = db.query(models.Account).order_by(models.Account.name.asc()).all()
+    categories = db.query(models.Category).order_by(models.Category.is_custom.asc(), models.Category.name.asc()).all()
+    upi_summaries = get_upi_id_summary(db, only_untagged=only_untagged)
+    
+    return templates.TemplateResponse(
+        request=request,
+        name="settings.html",
+        context={
+            "accounts": accounts,
+            "categories": categories,
+            "upi_summaries": upi_summaries,
+            "only_untagged": only_untagged,
+            "message": "Market scan started in the background. Results will appear on the dashboard soon.",
+            "settings": {
+                "balance_adjustment": get_setting(db, "balance_adjustment", "0"),
+                "theme": get_dashboard_state(db, "theme", "dark"),
+                "exclude_self_transfer_from_balance": get_setting(db, "exclude_self_transfer_from_balance", "true"),
+            },
+        },
+    )
+
 @router.post("/settings/balance")
 async def update_balance_adjustment(
     request: Request,
