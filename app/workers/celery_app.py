@@ -31,5 +31,9 @@ celery_app.conf.update(
             "task": "scan_us_markets_task",
             "schedule": crontab(minute=0), # Every hour
         },
+        "hourly-database-backup": {
+            "task": "backup_database_task",
+            "schedule": crontab(minute=0), # Every hour
+        },
     },
 )

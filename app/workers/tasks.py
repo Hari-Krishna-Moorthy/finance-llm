@@ -68,6 +68,24 @@ def generate_ai_analysis_task(ticker: str):
     finally:
         db.close()
 
+import subprocess
+
+@celery_app.task(name="backup_database_task")
+def backup_database_task():
+    try:
+        print("Starting automated periodic database backup...")
+        # Run the backup script
+        result = subprocess.run(["./scripts/backup_db.sh"], capture_output=True, text=True)
+        if result.returncode == 0:
+            print("Database backup completed successfully.")
+            return {"status": "success", "output": result.stdout}
+        else:
+            print(f"Database backup failed: {result.stderr}")
+            return {"status": "error", "message": result.stderr}
+    except Exception as e:
+        print(f"Backup Error: {e}")
+        return {"status": "error", "message": str(e)}
+
 @celery_app.task(name="scan_us_markets_task")
 def scan_us_markets_task():
     db = SessionLocal()
