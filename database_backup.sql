@@ -154,6 +154,44 @@ ALTER SEQUENCE public.app_settings_id_seq OWNED BY public.app_settings.id;
 
 
 --
+-- Name: audit_logs; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.audit_logs (
+    id integer NOT NULL,
+    table_name character varying NOT NULL,
+    record_id integer NOT NULL,
+    action character varying NOT NULL,
+    changes json,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.audit_logs OWNER TO postgres;
+
+--
+-- Name: audit_logs_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.audit_logs_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.audit_logs_id_seq OWNER TO postgres;
+
+--
+-- Name: audit_logs_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.audit_logs_id_seq OWNED BY public.audit_logs.id;
+
+
+--
 -- Name: categories; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -539,6 +577,13 @@ ALTER TABLE ONLY public.app_settings ALTER COLUMN id SET DEFAULT nextval('public
 
 
 --
+-- Name: audit_logs id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.audit_logs ALTER COLUMN id SET DEFAULT nextval('public.audit_logs_id_seq'::regclass);
+
+
+--
 -- Name: categories id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
@@ -797,7 +842,7 @@ COPY public.ai_analysis_results (id, ticker, analysis_text, generated_date) FROM
 --
 
 COPY public.alembic_version (version_num) FROM stdin;
-4500483224e0
+ce3c8aa5862c
 \.
 
 
@@ -808,6 +853,14 @@ COPY public.alembic_version (version_num) FROM stdin;
 COPY public.app_settings (id, key, value, updated_at) FROM stdin;
 2	balance_adjustment	0	2026-05-27 16:01:33.213848+00
 1	exclude_self_transfer_from_balance	false	2026-05-29 06:26:59.10106+00
+\.
+
+
+--
+-- Data for Name: audit_logs; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.audit_logs (id, table_name, record_id, action, changes, created_at) FROM stdin;
 \.
 
 
@@ -9366,6 +9419,13 @@ SELECT pg_catalog.setval('public.app_settings_id_seq', 2, true);
 
 
 --
+-- Name: audit_logs_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('public.audit_logs_id_seq', 1, false);
+
+
+--
 -- Name: categories_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
@@ -9458,6 +9518,14 @@ ALTER TABLE ONLY public.alembic_version
 
 ALTER TABLE ONLY public.app_settings
     ADD CONSTRAINT app_settings_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: audit_logs audit_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.audit_logs
+    ADD CONSTRAINT audit_logs_pkey PRIMARY KEY (id);
 
 
 --
@@ -9579,6 +9647,27 @@ CREATE INDEX ix_app_settings_id ON public.app_settings USING btree (id);
 --
 
 CREATE UNIQUE INDEX ix_app_settings_key ON public.app_settings USING btree (key);
+
+
+--
+-- Name: ix_audit_logs_id; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX ix_audit_logs_id ON public.audit_logs USING btree (id);
+
+
+--
+-- Name: ix_audit_logs_record_id; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX ix_audit_logs_record_id ON public.audit_logs USING btree (record_id);
+
+
+--
+-- Name: ix_audit_logs_table_name; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX ix_audit_logs_table_name ON public.audit_logs USING btree (table_name);
 
 
 --
