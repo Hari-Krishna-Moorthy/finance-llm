@@ -52,6 +52,10 @@ This file contains the foundational mandates, architectural patterns, and workfl
 - Use Z-score (threshold > 3) for identifying spending anomalies.
 - Group by description and amount for recurring payment prediction.
 
+### Audit Logging
+- Changes (INSERT, UPDATE, DELETE) to critical tables (`Account`, `Category`, `Transaction`, `AppSetting`) are automatically captured using SQLAlchemy `before_flush` events.
+- Audit records are stored in the `audit_logs` table, storing the action type, record ID, and a JSON payload of the old and new field values for full data traceability.
+
 ### US Stock Momentum Analyzer & AI Integration
 - Autonomous scanning of curated US equities (NASDAQ, NYSE, S&P 500) via background Celery tasks.
 - Technical analysis engine computes EMA, SMA, RSI, and MACD strictly using manual Pandas calculations to maintain environment compatibility and avoids gRPC fork issues on macOS by lazy loading imports (`OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES` and `GRPC_ENABLE_FORK_SUPPORT=1` required).

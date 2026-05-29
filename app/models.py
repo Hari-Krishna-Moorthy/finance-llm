@@ -89,6 +89,17 @@ class AppSetting(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
 
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    table_name = Column(String, index=True, nullable=False)
+    record_id = Column(Integer, index=True, nullable=False)
+    action = Column(String, nullable=False)  # INSERT, UPDATE, DELETE
+    changes = Column(JSON, nullable=True)  # Store old/new values
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
 # US Stock Momentum Analyzer Models
 
 class StockSignal(Base):

@@ -22,7 +22,7 @@ elif [ -x "/usr/local/bin/pg_dump" ]; then
 else
     # Check if a postgres docker container is running
     if command -v docker >/dev/null 2>&1; then
-        DOCKER_CONTAINER=$(docker ps --filter "ancestor=postgres" --format "{{.Names}}" | head -n 1)
+        DOCKER_CONTAINER=$(docker ps --filter "ancestor=timescale/timescaledb-postgis:latest-pg11" --filter "ancestor=postgres" --format "{{.Names}}" --format "{{.Names}}" | head -n 1)
         if [ -n "$DOCKER_CONTAINER" ]; then
             USE_DOCKER=true
             echo "Local pg_dump not found. Falling back to Docker container: $DOCKER_CONTAINER"
