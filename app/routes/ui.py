@@ -435,7 +435,7 @@ async def update_theme(
     upsert_dashboard_state(db, "theme", theme)
     return JSONResponse({"status": "ok", "theme": theme})
 
-from ..workers.tasks import process_statement_task, process_markdown_task, generate_ai_analysis_task
+from ..workers.tasks import process_statement_task, process_markdown_task, generate_ai_analysis_task, scan_us_markets_task
 
 @router.post("/upload")
 async def handle_upload(
